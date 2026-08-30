@@ -13,13 +13,14 @@
 
 | 项 | 状态 | 证据命令 | 预期输出 |
 |---|---|---|---|
-| 单测 | ✅ 8/8 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `8 passed` |
+| 单测 | ✅ 9/9 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `9 passed`(含 1 个 monkeypatch 掉模型的语义路径测试,不走网络) |
 | 机械层 CLI | ✅ | `.venv/bin/python -m patrol run demo-vault --no-model` | 表格 3 行:1 orphan + 2 dangling_wikilink |
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored、/run 无 token 401 | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
-| Gemini 语义层 | ❌ 未跑过(本机无 key) | — | — |
+| Gemini 语义层 | ⚠️ 真调用未跑过(本机无 key);裁决逻辑已用 stub 覆盖 | `.venv/bin/pytest -q tests/test_semantic_path.py` | `1 passed`:3 条模型 finding → 留 1 / dropped 2 |
 | GitHub 开 PR 闭环 | ✅ R2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
-| Cloud Run | ❌ gcloud 已装(`/opt/homebrew/bin/gcloud`),未登录、无项目 | `gcloud auth list` | 当前为空 |
+| Cloud Run | ❌ 未部署;部署脚本已写好待跑 | `bash -n scripts/deploy.sh` | 无输出(语法通过);有凭证后 `PROJECT=<id> bash scripts/deploy.sh` |
+| 架构图 PNG | ✅ `docs/architecture.png`(mermaid-cli 导出,2000px 白底) | `ls -la docs/architecture.png` | 约 68 KB |
 | Firestore | ❌ 代码可选(不设 `FIRESTORE_COLLECTION` 即跳过) | — | — |
 
 已知未验证的假设(接手时优先证伪):
@@ -82,6 +83,8 @@ cd .. && set -a && source .env && set +a
 完成判据:输出最后一行 `PR: https://github.com/Longado/vault-patrol-demo/pull/1`,PR 里 `MEMORY.md` 少了那行断链,`PATROL_REPORT.md` 表格含机械+语义两类。再跑一次同命令 → 因为没设 Firestore,会再次开 PR 但 `open_pr` 走 PATCH 更新同一个 PR(不会开第二个),这是预期。
 
 ### R3 Cloud Run 部署(约 1.5 小时,依赖 E2)
+
+**一条命令版本(推荐):`PROJECT=<项目 ID> bash scripts/deploy.sh`** —— 幂等,可重跑。它按顺序做:开服务 → 建 Firestore(已存在则跳过)→ 从 `.env` 建/更新三个 secret(webhook secret 复用已有版本,避免重跑后 GitHub 那边签名失效)→ 补服务账号 IAM → `gcloud run deploy --source` → 打印 URL + 打 `/healthz` → 在 demo 仓建或更新 push webhook。下面是它内部等价的手工步骤,排障时对照看:
 
 ```bash
 export PATH=/opt/homebrew/share/google-cloud-sdk/bin:$PATH
@@ -153,6 +156,7 @@ patrol/store.py       Firestore 锚点(可选)
 patrol/runner.py      控制流:重试 2 次、幂等跳过同 sha、clean 不开 PR
 patrol/cli.py         run <path> / repo <owner/name>
 app/main.py           /webhook(HMAC 校验)/run(Bearer)/healthz
+scripts/deploy.sh     R3 全流程,幂等可重跑
 demo-vault/           埋了全部 8 类腐烂的示例仓
-tests/                8 个测试
+tests/                9 个测试(含不走网络的语义路径 stub 测试)
 ```
