@@ -21,7 +21,9 @@ Built for the All Things Agentic Hackathon (Taskmaster track). Runs on Cloud Run
 
 Every semantic finding must carry an `evidence_quote` that is a verbatim substring of the file. If it is not, code drops it. The PR shows how many were dropped.
 
-Example PR: https://github.com/Longado/vault-patrol-demo/pull/1
+Live service: https://vault-patrol-35482708254.us-central1.run.app/health
+
+Example PR (opened and kept up to date by the deployed service): https://github.com/Longado/vault-patrol-demo/pull/1
 
 ## Architecture
 
@@ -35,7 +37,7 @@ See [docs/architecture.md](docs/architecture.md) (mermaid diagram + design ratio
 uv venv && uv pip install -e ".[dev]"
 .venv/bin/pytest -q                                   # 11 passed
 .venv/bin/python -m patrol run demo-vault --no-model  # mechanical layer only
-cp .env.example .env                                  # add GEMINI_API_KEY
+cp .env.example .env                                  # fill in the Vertex project (or a GEMINI_API_KEY)
 set -a && source .env && set +a
 .venv/bin/python -m patrol run demo-vault             # + semantic layer
 .venv/bin/python -m patrol repo owner/name            # clone → patrol → open PR (needs GITHUB_TOKEN)
@@ -108,4 +110,4 @@ demo-vault/            sample vault with every rot category planted
 
 ## Disclosure
 
-All code was written during the submission period. The five semantic categories come from a manual checklist the author had been running by hand on their own notes; that checklist is prose, not code.
+All code in this repository was written on 2026-08-30 and 2026-08-31, during the submission period. The five semantic rot categories come from a checklist the author had been running by hand on their own notes for months; that checklist is prose, not code, and none of it was carried in as existing source.
