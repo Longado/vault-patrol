@@ -4,7 +4,7 @@ from patrol.models import Category
 
 def test_broken_index_link_found(demo_vault):
     targets = {f.related_files[0] for f in broken_index_links(demo_vault)}
-    assert targets == {"notes/planning_v1.md"} or "notes/planning_v1.md" in targets or targets == set()
+    assert targets == {"notes/planner_2025.md"}  # planning_v1.md exists; planner_2025.md is the seeded dead link
 
 
 def test_orphan_found(demo_vault):

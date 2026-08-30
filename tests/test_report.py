@@ -8,6 +8,6 @@ def test_broken_link_line_removed_from_index(demo_vault):
                      semantic=[], dropped=0, model_version=None, prompt_version="t")
     edits = apply_mechanical_edits(demo_vault, r)
     if edits:
-        assert "planning_v1" not in edits["MEMORY.md"]
+        assert "planner_2025" not in edits["MEMORY.md"]
         assert "tools/stack.md" in edits["MEMORY.md"]
     assert "Vault patrol report" in render_report(r)
