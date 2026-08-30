@@ -50,5 +50,6 @@ class PatrolResult(BaseModel):
     mechanical: list[Finding]
     semantic: list[Finding]
     dropped: int = Field(description="Model findings rejected by code-level verification.")
+    notes_truncated: int = Field(default=0, description="Notes the model never saw because the vault exceeded the context budget.")
     model_version: str | None
     prompt_version: str

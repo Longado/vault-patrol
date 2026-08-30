@@ -9,6 +9,7 @@ from pathlib import Path
 INDEX_CANDIDATES = ("MEMORY.md", "INDEX.md", "index.md", "README.md")
 MD_LINK_RE = re.compile(r"\]\(([^)\s#]+?\.md)(?:#[^)]*)?\)")
 WIKI_LINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]")
+MD_DIR_LINK_RE = re.compile(r"\]\(([^)\s#]+/)\)")
 MAX_FILE_BYTES = 64_000
 
 
@@ -63,3 +64,11 @@ def md_links(note: Note) -> tuple[str, ...]:
 
 def wiki_links(note: Note) -> tuple[str, ...]:
     return tuple(nfc(m.strip()) for m in WIKI_LINK_RE.findall(note.text))
+
+
+def folder_links(note: Note) -> tuple[str, ...]:
+    """Links to a directory rather than a file, e.g. `[sources/](sources/)`.
+    An index bullet pointing at a folder vouches for everything inside it."""
+    base = Path(note.rel_path).parent
+    return tuple(nfc(str((base / m).as_posix())).replace("./", "").rstrip("/") + "/"
+                 for m in MD_DIR_LINK_RE.findall(note.text))

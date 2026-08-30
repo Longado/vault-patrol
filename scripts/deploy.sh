@@ -28,14 +28,7 @@ gcloud config set project "$PROJECT" >/dev/null
 echo "==> enabling services (no-op if already enabled)"
 gcloud services enable \
   run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  firestore.googleapis.com secretmanager.googleapis.com --project "$PROJECT"
-
-echo "==> firestore"
-if gcloud firestore databases describe --database='(default)' --project "$PROJECT" >/dev/null 2>&1; then
-  echo "    default database already exists"
-else
-  gcloud firestore databases create --location="$REGION" --type=firestore-native --project "$PROJECT"
-fi
+  secretmanager.googleapis.com --project "$PROJECT"
 
 # create-or-update a secret from stdin
 put_secret() {
@@ -61,7 +54,7 @@ put_secret webhook-secret "$WEBHOOK_SECRET"
 echo "==> iam for the runtime service account"
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format 'value(projectNumber)')"
 RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-for role in roles/secretmanager.secretAccessor roles/datastore.user; do
+for role in roles/secretmanager.secretAccessor; do
   gcloud projects add-iam-policy-binding "$PROJECT" \
     --member "serviceAccount:${RUNTIME_SA}" --role "$role" --condition=None >/dev/null
 done
@@ -69,7 +62,7 @@ done
 echo "==> deploying (Cloud Build from source; --no-cpu-throttling keeps background patrols alive)"
 gcloud run deploy "$SERVICE" --source . --region "$REGION" --project "$PROJECT" \
   --allow-unauthenticated --no-cpu-throttling --timeout 600 --memory 1Gi \
-  --set-env-vars "GEMINI_MODEL=${GEMINI_MODEL},FIRESTORE_COLLECTION=patrol_runs" \
+  --set-env-vars "GEMINI_MODEL=${GEMINI_MODEL}" \
   --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,GITHUB_TOKEN=github-token:latest,GITHUB_WEBHOOK_SECRET=webhook-secret:latest"
 
 URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT" --format 'value(status.url)')"

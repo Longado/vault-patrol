@@ -23,6 +23,7 @@ def render_report(r: PatrolResult) -> str:
         f"- anchor commit: `{r.anchor_sha or 'n/a'}`",
         f"- model: `{r.model_version or 'skipped'}` · prompt: `{r.prompt_version}`",
         f"- mechanical findings: {len(r.mechanical)} · semantic findings kept: {len(r.semantic)} · dropped by verification: {r.dropped}",
+        f"- notes not sent to the model (context budget): {r.notes_truncated}",
         "",
         "Subtraction only: this PR deletes dead index lines and proposes edits. Nothing new is created.",
         "",

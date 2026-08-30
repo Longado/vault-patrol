@@ -7,7 +7,7 @@ flowchart LR
     GH[(GitHub vault repo)] -- push webhook, HMAC signed --> CR
     subgraph GCP[Google Cloud]
         CR[Cloud Run · FastAPI<br/>returns 202, patrols in background]
-        FS[(Firestore<br/>patrol_runs: anchor sha, counts, model+prompt version)]
+        SM[(Secret Manager<br/>gemini key · github token · webhook secret)]
     end
     CR -- clone @ sha --> V[Vault snapshot<br/>immutable, NFC-normalised]
     V --> M[Mechanical layer · code<br/>broken index links · orphans · dangling wikilinks]
@@ -16,7 +16,7 @@ flowchart LR
     M --> R[PATROL_REPORT.md + delete dead index lines]
     A --> R
     R -- branch vault-patrol/report --> PR[GitHub PR · subtraction only]
-    CR <--> FS
+    SM -.-> CR
 ```
 
 ## Why it is shaped like this
@@ -29,5 +29,5 @@ flowchart LR
 | `reasoning` is the first schema field | The model commits to a verdict only after writing why. |
 | Code verifies every quote | A finding whose `evidence_quote` is not a verbatim substring of the file is dropped and counted in `dropped`. The PR never carries a hallucinated citation. |
 | Subtraction-only action enum | `delete_line / mark_historical / merge_into / add_arbitration_line / needs_human`. The agent cannot invent tasks or notes. |
-| Firestore anchor | Same sha → skip. Every run records `model_version` + `prompt_version` for drift forensics. |
+| No run database | Re-running updates the existing PR instead of opening a second one, so idempotency needs no state. `model_version` + `prompt_version` are stamped into every report for drift forensics. |
 | Same entry point locally | `python -m patrol run <dir>` is the identical code path without GitHub or GCP, so the tool survives after the hackathon. |

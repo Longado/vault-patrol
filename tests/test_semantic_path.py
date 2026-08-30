@@ -18,7 +18,7 @@ def test_patrol_path_keeps_only_verified_findings(monkeypatch):
         _f("tools/memvid.md", "Status: retired since 7-03."),   # fabricated quote → dropped
         _f("tools/stack.md", "It is the primary retrieval path; grep is the fallback.", "unsure"),  # verbatim but unsure → dropped
     ])
-    monkeypatch.setattr(runner, "judge", lambda v, model=None: (canned, "stub-model"))
+    monkeypatch.setattr(runner, "judge", lambda v, model=None: (canned, "stub-model", 0))
 
     res = runner.patrol_path(DEMO, use_model=True)
 
@@ -26,3 +26,4 @@ def test_patrol_path_keeps_only_verified_findings(monkeypatch):
     assert res.semantic[0].evidence_quote == "Status: live."
     assert res.dropped == 2
     assert res.model_version == "stub-model"
+    assert res.notes_truncated == 0

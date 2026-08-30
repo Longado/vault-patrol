@@ -7,7 +7,6 @@ import logging
 import os
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
-from pydantic import BaseModel
 
 from patrol.runner import BRANCH, patrol_repo
 
@@ -63,20 +62,3 @@ async def webhook(request: Request, bg: BackgroundTasks,
         return {"status": "ignored", "reason": f"not default branch ({ref})"}
     bg.add_task(_run, repo, payload.get("after"))
     return {"status": "accepted", "repo": repo, "sha": payload.get("after")}
-
-
-class RunRequest(BaseModel):
-    repo: str
-    ref: str | None = None
-
-
-@app.post("/run")
-def run_now(req: RunRequest, bg: BackgroundTasks, authorization: str | None = Header(default=None)) -> dict:
-    """Manual trigger for demos; protected by the same shared secret."""
-    secret = os.getenv("GITHUB_WEBHOOK_SECRET", "")
-    if not secret or authorization != f"Bearer {secret}":
-        raise HTTPException(401, "unauthorized")
-    if "/" not in req.repo:
-        raise HTTPException(400, "repo must be owner/name")
-    bg.add_task(_run, req.repo, req.ref)
-    return {"status": "accepted", "repo": req.repo}
