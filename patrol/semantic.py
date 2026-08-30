@@ -52,7 +52,8 @@ def _client() -> genai.Client:
 
 
 def _block(n: Note) -> str:
-    return f'<note path="{n.rel_path}">\n{n.text}\n</note>'
+    kind = "record" if n.is_record else "live"
+    return f'<note path="{n.rel_path}" kind="{kind}">\n{n.text}\n</note>'
 
 
 def render_notes(notes: list[Note]) -> str:

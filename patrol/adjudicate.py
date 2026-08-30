@@ -14,6 +14,10 @@ log = logging.getLogger(__name__)
 # code checks it the same way it checks the first quote. Without this, a real quote can carry an
 # invented rationale (measured 2026-08-30: a true MEMORY.md quote justified by a deletion record
 # that does not exist anywhere in the vault).
+# Categories that accuse a note of being out of date. A dated log is never out of date: it
+# records what was true on its date. Measured 2026-08-30: every false positive left after the
+# counter-evidence gate was one of these fired at a note in a dated research folder.
+LIVE_ONLY_CATEGORIES = frozenset({Category.STALE_ACTIVE_REFERENCE, Category.FALSIFIED_CLAIM})
 CROSS_NOTE_CATEGORIES = frozenset({
     Category.STALE_ACTIVE_REFERENCE,
     Category.HARD_CONFLICT,
@@ -45,8 +49,11 @@ def _reject_reason(v: Vault, f: Finding) -> str | None:
     """None means the finding survives. Otherwise the reason it does not."""
     if f.verdict != "rot":
         return "unsure"
-    if v.get(nfc(f.file)) is None:
+    note = v.get(nfc(f.file))
+    if note is None:
         return "file_missing"
+    if f.category in LIVE_ONLY_CATEGORIES and note.is_record:
+        return "record_note"
     if not evidence_present(v, f):
         return "quote_not_found"
     if f.category in CROSS_NOTE_CATEGORIES:

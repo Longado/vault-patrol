@@ -13,6 +13,9 @@ MD_LINK_RE = re.compile(r"\]\(([^)\s#]+?\.md)(?:#[^)]*)?\)")
 WIKI_LINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]")
 MD_DIR_LINK_RE = re.compile(r"\]\(([^)\s#]+/)\)")
 MAX_FILE_BYTES = 64_000
+DATED_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+FRONTMATTER_DATE_RE = re.compile(r"^date:", re.MULTILINE)
+RECORD_DIR_WORDS = ("study", "research", "log", "archive", "history")
 
 
 @dataclass(frozen=True)
@@ -23,6 +26,21 @@ class Note:
     @property
     def stem(self) -> str:
         return Path(self.rel_path).stem
+
+    @property
+    def is_record(self) -> bool:
+        """A dated log rather than a live instruction. Records are allowed to describe a dead
+        project in the present tense — that is what a record is for — so the stale/falsified
+        checks skip them. Decided by the filename, the frontmatter and the folder, never by
+        the model."""
+        path = Path(self.rel_path)
+        if DATED_NAME_RE.match(path.name):
+            return True
+        if self.text.startswith("---"):
+            end = self.text.find("\n---", 3)
+            if end != -1 and FRONTMATTER_DATE_RE.search(self.text[:end]):
+                return True
+        return any(w in part.lower() for part in path.parts[:-1] for w in RECORD_DIR_WORDS)
 
 
 @dataclass(frozen=True)

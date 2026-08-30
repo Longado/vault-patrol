@@ -13,15 +13,15 @@
 
 | 项 | 状态 | 证据命令 | 预期输出 |
 |---|---|---|---|
-| 单测 | ✅ 30/30 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `30 passed`(全部不走网络:反证引用五连、语义路径 stub、分批+批大小旋钮、.patrolignore、PR body、webhook 签名) |
+| 单测 | ✅ 37/37 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `37 passed`(全部不走网络:记录笔记闸、反证引用五连、语义路径 stub、分批+批大小旋钮、.patrolignore、PR body、webhook 签名) |
 | 机械层 CLI | ✅ | `.venv/bin/python -m patrol run demo-vault --no-model` | 表格 4 行:1 broken_link + 1 orphan + 2 dangling_wikilink |
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
 | Gemini 语义层 | ✅ 闸 1 通过(Vertex,location=global) | `set -a && source .env && set +a && .venv/bin/python -m patrol run demo-vault` | 5/5 类全中:7 semantic kept / 0 dropped(prompt 2026-08-30.4) |
-| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 87s;84 mechanical(32 orphan + 52 dangling)/ 10 semantic / 2 dropped(quote_not_found),人判 6 真 4 假(prompt .4,见 3.6) |
+| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 96s;84 mechanical(32 orphan + 52 dangling)/ 6 semantic / 1 dropped(quote_not_found),人判 4 真 2 假(prompt .5,见 3.7) |
 | GitHub 开 PR 闭环 | ✅ 闸 2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
-| Cloud Run | ✅ revision 4(prompt 2026-08-30.4,两段引用)https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
-| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ ff5cd20...: 4 mechanical / 7 semantic / 0 dropped → .../pull/1`,5 类全中,PR 表格带「proof in other note」列 |
+| Cloud Run | ✅ revision 5(prompt 2026-08-30.5,两段引用 + 记录笔记闸)https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
+| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ daa39d2...: 4 mechanical / 7 semantic / 0 dropped → .../pull/1`,5 类全中,PR 表格带「proof in other note」列 |
 | 架构图 PNG | ✅ `docs/architecture.png`(mermaid-cli 导出,2000px 白底) | `ls -la docs/architecture.png` | 约 68 KB |
 
 已知未验证的假设(接手时优先证伪):
@@ -188,6 +188,42 @@ kept: 0 | reasons: {'counter_evidence_not_found': 1}
 带 `topic:/date:/sources:` 头的研究笔记,prompt 第 1 条本来就把研究笔记排除在外。**失败模式从
 "编造依据"降级成了"类别判断偏松"**,后者危险性低得多,但还没解决——下一轮若要动,应该改 prompt
 第 1 条对研究笔记的措辞,或让 `.patrolignore` 收掉 `ai_native_study/`。
+
+## 3.7 记录笔记闸(2026-08-30 轮 5,功能冻结点)
+
+3.6 剩下的 4 条假阳性全在 `ai_native_study/2026-04-19-*.md`:研究笔记里写"recall 项目直接适用",
+被当成活指令。修法不靠模型自觉,靠代码先分类:
+
+`Note.is_record` = 文件名以 `YYYY-MM-DD` 开头 / frontmatter 有 `date:` / 路径里有某层目录名
+含 study·research·log·archive·history。渲染时写进标签 `<note path="..." kind="record|live">`,
+prompt .5 加一句"kind=record 的不报 stale/falsified",裁决层再兜一道 `record_note` drop。
+**记录笔记只是不当靶子,仍可当反证**(有测试锁住)。
+
+真仓复跑(96s / 2 calls):84 mechanical / **6 semantic kept / 1 dropped(quote_not_found)**,
+`record_note` drop 为 0——说明 prompt 那一句在上游就生效了,轮 4 那 4 条假阳性没再出现。
+
+| 判定 | 类别 | 文件 | 反证文件 |
+|---|---|---|---|
+| 真 | stale_active_reference | `feedback_upward_reporting.md` | `feedback_upward_report_docx_template.md` |
+| 真 | stale_active_reference | `hyperframes_study.md` | `jianying_mcp_project.md` |
+| 真 | stale_active_reference | `feedback_bd_email_sop.md` | `dragonway_outreach_state.md` |
+| 真 | hard_conflict | `wenzhou_ai_manufacturing.md` | `renmin_bid_nuolai.md` |
+| **假** | stale_active_reference | `config/rules/common/agents.md` | `MEMORY.md` |
+| **假** | stale_active_reference | `feedback_llm_contract_selfcheck.md` | `MEMORY.md` |
+
+**两条假阳性是同一个新病灶,记在这里给下一轮**:它们的反证引用是
+`**8-30 Eddie 拍板退役**(有造工具需求...)`,这句在 MEMORY.md 里逐字存在,所以过闸了——但它属于
+**Meta Finding 5-02** 那一条,不是 SHIFU 那一条(SHIFU 那行写的是"7-06 整体重挂 / 8-09 结算逾期
+待裁决")。也就是说:**反证引用能证明"这句话在那个文件里",证明不了"这句话说的是这个主题"**。
+索引类大文件(一行一个项目)最容易触发。可能的下一步:反证引用必须落在与 `file` 或其 stem 同一行/
+同一段,或者索引文件按条目切块再喂。本轮不改——功能已冻结。
+
+另:`hyperframes_study.md` 顶层文件名带 study 但**不算** record(规则只看目录名),这是有意的,
+它确实是一份带活 TODO 的笔记。
+
+跨轮观察:同一个仓、同一个 prompt 家族,3 轮跑出来的"真发现"集合重合度很低(轮 4 的 6 条真里只有
+`hyperframes_study.md` 在轮 5 复现)。temperature=0 也不代表跨 prompt 版本稳定,**别把单次跑的
+条数当指标**。
 
 ## 4. 提交后怎么沉淀(比赛跟日常是同一份代码)
 
