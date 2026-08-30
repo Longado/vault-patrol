@@ -1,5 +1,7 @@
 # Architecture
 
+Exported image: [architecture.png](architecture.png) (regenerate with `npx -y @mermaid-js/mermaid-cli -i <mermaid block> -o docs/architecture.png -b white -w 2000`).
+
 ```mermaid
 flowchart LR
     GH[(GitHub vault repo)] -- push webhook, HMAC signed --> CR
