@@ -12,3 +12,4 @@
 - [Testing rules](notes/testing.md)
 - [Coding style](notes/coding_style.md)
 - [Old planning doc](notes/planning_v1.md) — deprecated planning flow
+- [Retired planner notes](notes/planner_2025.md)

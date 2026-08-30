@@ -1,7 +1,7 @@
 # vault-patrol 接力计划(All Things Agentic Hackathon)
 
 - 写于:2026-08-30 晚
-- 代码锚点:`6d6c2a5`(接手第一步:`git -C ~/Desktop/Workspace/01_项目/vault-patrol log --oneline -3`,若 HEAD 不是 6d6c2a5 先 `git diff 6d6c2a5..HEAD --stat` 看清差异再动)
+- 代码锚点:见 `git log --oneline -1`(R2 后已推进)(接手第一步:`git -C ~/Desktop/Workspace/01_项目/vault-patrol log --oneline -3`,若 HEAD 不是 6d6c2a5 先 `git diff 6d6c2a5..HEAD --stat` 看清差异再动)
 - 硬截止:**北京时间 2026-09-01 08:00**(= 8-31 17:00 PDT)。自设提交线 **9-1 02:00**,留 6 小时余量。
 - 提交入口:https://allthingsagentichackathon.devpost.com/ (赛道 Taskmaster)
 
@@ -18,7 +18,7 @@
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored、/run 无 token 401 | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
 | Gemini 语义层 | ❌ 未跑过(本机无 key) | — | — |
-| GitHub 开 PR 闭环 | ❌ 未跑过 | — | — |
+| GitHub 开 PR 闭环 | ✅ R2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
 | Cloud Run | ❌ gcloud 已装(`/opt/homebrew/bin/gcloud`),未登录、无项目 | `gcloud auth list` | 当前为空 |
 | Firestore | ❌ 代码可选(不设 `FIRESTORE_COLLECTION` 即跳过) | — | — |
 
@@ -66,7 +66,7 @@ cd ~/Desktop/Workspace/01_项目/vault-patrol && set -a && source .env && set +a
 
 顺手:`README.md` 还没写,R1 跑通后把真实报告贴进去当示例。
 
-### R2 GitHub 闭环(约 1 小时,依赖 E3)
+### R2 GitHub 闭环 ✅ 已完成(demo 仓 https://github.com/Longado/vault-patrol-demo,本机副本在 `../vault-patrol-demo/`;主仓 `demo-vault/` 只是文件快照,改示例内容要两边同步)
 
 ```bash
 # 1. 把 demo-vault 单独建成公开仓(评委可看 PR)
