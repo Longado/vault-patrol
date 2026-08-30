@@ -34,6 +34,8 @@ class Finding(BaseModel):
     category: Category
     file: str = Field(description="Vault-relative path of the primary file.")
     evidence_quote: str = Field(description="Verbatim substring copied from `file` that proves the finding. Must exist exactly.")
+    counter_evidence_file: str = Field(default="", description="The OTHER note that makes `file` wrong. Required for cross-note categories.")
+    counter_evidence_quote: str = Field(default="", description="Verbatim substring copied from `counter_evidence_file`: the retirement line, contradicting rule, usage number or duplicated statement.")
     related_files: list[str] = Field(default_factory=list)
     proposed_action: Action
     verdict: Literal["rot", "unsure"] = Field(description="'unsure' when evidence is ambiguous; code will drop it.")

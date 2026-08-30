@@ -9,13 +9,19 @@ from .vault import Vault
 REPORT_NAME = "PATROL_REPORT.md"
 
 
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")[:120]
+
+
 def _row(f: Finding) -> str:
-    quote = f.evidence_quote.replace("|", "\\|").replace("\n", " ")[:120]
     rel = ", ".join(f.related_files) if f.related_files else "—"
-    return f"| `{f.category.value}` | `{f.file}` | `{quote}` | {rel} | **{f.proposed_action.value}** | {f.reasoning} |"
+    proof = f"`{f.counter_evidence_file}`: `{_cell(f.counter_evidence_quote)}`" if f.counter_evidence_file else "—"
+    return (f"| `{f.category.value}` | `{f.file}` | `{_cell(f.evidence_quote)}` | {proof} | {rel} "
+            f"| **{f.proposed_action.value}** | {f.reasoning} |")
 
 
-TABLE_HEAD = ["| category | file | evidence | related | action | why |", "|---|---|---|---|---|---|"]
+TABLE_HEAD = ["| category | file | evidence | proof in other note | related | action | why |",
+              "|---|---|---|---|---|---|---|"]
 
 
 def _drop_summary(r: PatrolResult) -> str:
@@ -40,7 +46,7 @@ def _header(r: PatrolResult) -> list[str]:
 
 def render_report(r: PatrolResult) -> str:
     """The full flat table, written to PATROL_REPORT.md and printed by the CLI."""
-    rows = [_row(f) for f in [*r.mechanical, *r.semantic]] or ["| — | — | — | — | — | vault is clean |"]
+    rows = [_row(f) for f in [*r.mechanical, *r.semantic]] or ["| — | — | — | — | — | — | vault is clean |"]
     return "\n".join([*_header(r), *TABLE_HEAD, *rows, ""])
 
 

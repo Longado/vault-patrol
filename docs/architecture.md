@@ -12,7 +12,7 @@ flowchart LR
     CR -- clone @ sha --> V[Vault snapshot<br/>immutable, NFC-normalised]
     V --> M[Mechanical layer · code<br/>broken index links · orphans · dangling wikilinks]
     V --> G[Gemini 3.5 · GenAI SDK<br/>ONE call · JSON schema · reasoning-first<br/>5 semantic rot categories]
-    G --> A[Adjudication · code<br/>verdict=rot · file exists · evidence quote verbatim · dedupe · cap 12]
+    G --> A[Adjudication · code<br/>verdict=rot · file exists · evidence quote verbatim<br/>counter-quote verbatim in the other note · dedupe]
     M --> R[PATROL_REPORT.md + delete dead index lines]
     A --> R
     R -- branch vault-patrol/report --> PR[GitHub PR · subtraction only]
@@ -28,6 +28,7 @@ flowchart LR
 | One model call per patrol | Compound failure: 3×95% = 86%. Loops, retries (2) and termination live in `runner.py`. |
 | `reasoning` is the first schema field | The model commits to a verdict only after writing why. |
 | Code verifies every quote | A finding whose `evidence_quote` is not a verbatim substring of the file is dropped and counted in `dropped`. The PR never carries a hallucinated citation. |
+| Two quotes, not one | Four of the five categories are claims about *two* notes, so the model must also quote the sentence in the other note that proves it — the retirement line, the contradicting rule, the usage number — and code checks that quote against that file too. A true quote can otherwise carry an invented rationale: on 2026-08-30 a real `MEMORY.md` line was justified by a deletion record that exists nowhere in the vault. `pinned_old_version` is exempt; the pinned id is its own evidence. |
 | Subtraction-only action enum | `delete_line / mark_historical / merge_into / add_arbitration_line / needs_human`. The agent cannot invent tasks or notes. |
 | No run database | Re-running updates the existing PR instead of opening a second one, so idempotency needs no state. `model_version` + `prompt_version` are stamped into every report for drift forensics. |
 | Same entry point locally | `python -m patrol run <dir>` is the identical code path without GitHub or GCP, so the tool survives after the hackathon. |

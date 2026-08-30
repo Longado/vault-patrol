@@ -13,15 +13,15 @@
 
 | 项 | 状态 | 证据命令 | 预期输出 |
 |---|---|---|---|
-| 单测 | ✅ 25/25 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `25 passed`(全部不走网络:语义路径 stub、分批+批大小旋钮、.patrolignore、PR body、webhook 签名) |
+| 单测 | ✅ 30/30 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `30 passed`(全部不走网络:反证引用五连、语义路径 stub、分批+批大小旋钮、.patrolignore、PR body、webhook 签名) |
 | 机械层 CLI | ✅ | `.venv/bin/python -m patrol run demo-vault --no-model` | 表格 4 行:1 broken_link + 1 orphan + 2 dangling_wikilink |
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
-| Gemini 语义层 | ✅ 闸 1 通过(Vertex,location=global) | `set -a && source .env && set +a && .venv/bin/python -m patrol run demo-vault` | 5/5 类全中:6 semantic kept / 0 dropped(prompt 2026-08-30.2) |
-| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 79s;84 mechanical(32 orphan + 52 dangling)/ 10 semantic / 0 dropped,人判 9 真 1 假(prompt .3,见 3.5) |
+| Gemini 语义层 | ✅ 闸 1 通过(Vertex,location=global) | `set -a && source .env && set +a && .venv/bin/python -m patrol run demo-vault` | 5/5 类全中:7 semantic kept / 0 dropped(prompt 2026-08-30.4) |
+| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 87s;84 mechanical(32 orphan + 52 dangling)/ 10 semantic / 2 dropped(quote_not_found),人判 6 真 4 假(prompt .4,见 3.6) |
 | GitHub 开 PR 闭环 | ✅ 闸 2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
-| Cloud Run | ✅ revision 3(prompt 2026-08-30.3)https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
-| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ cb5bb1f...: 4 mechanical / 6 semantic / 0 dropped → .../pull/1`,5 类全中 |
+| Cloud Run | ✅ revision 4(prompt 2026-08-30.4,两段引用)https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
+| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ ff5cd20...: 4 mechanical / 7 semantic / 0 dropped → .../pull/1`,5 类全中,PR 表格带「proof in other note」列 |
 | 架构图 PNG | ✅ `docs/architecture.png`(mermaid-cli 导出,2000px 白底) | `ls -la docs/architecture.png` | 约 68 KB |
 
 已知未验证的假设(接手时优先证伪):
@@ -160,6 +160,34 @@ Devpost 表单要填:赛道 Taskmaster;hosted URL 填 `https://vault-patrol-3548
    而且是按到达顺序砍,不是按质量。要提高真实产出得先动这个上限。
 2. 不限批下唯一那条假阳性(`MEMORY.md` 的 xrepo)引用原文是真的,但 reasoning 里"2026-07-03
    已删除"这个日期在仓里查无实据。引用逐字核实挡不住"引用为真、推理编造"这一类。
+
+## 3.6 反证引用(2026-08-30 轮 4)
+
+3.5 暴露的洞:引用逐字核实只能保证"这句话在文件里",管不住"这句话为真、但推理是编的"。实测那条
+`MEMORY.md` 的 xrepo 误报——引用原文真实,reasoning 却断言 xrepo_decision.md 里有"2026-07-03
+已删除"的记录,而全仓查无此句。
+
+补的闸:**跨文件的四类(stale_active_reference / hard_conflict / falsified_claim /
+overlap_cluster)必须再交一段反证引用**——另一个文件里那句"退役行 / 相反规则 / 使用次数 /
+重复陈述",代码按同样的方式逐字核对它。`pinned_old_version` 豁免(钉死的 id 本身就是证据)。
+新增 drop 原因 `counter_evidence_missing` / `counter_evidence_not_found`。
+
+把轮 3 那条误报原样喂回新闸(`file=MEMORY.md`,真引用,配它 reasoning 暗示的那句反证):
+
+```
+kept: 0 | reasons: {'counter_evidence_not_found': 1}
+不给反证的变体 -> {'counter_evidence_missing': 1}
+```
+
+同轮删掉 `MAX_SEMANTIC_FINDINGS = 12`——那是个凭空定的上限,3.5 里它按到达顺序砍掉 13~21 条
+合格发现,是发明边界不是真约束;去重仍在。
+
+真仓复跑(prompt .4,不限批):84 mechanical / 10 semantic kept / 2 dropped(都是 quote_not_found)。
+人工判定 **6 真 4 假**。四条假阳性全部来自 `ai_native_study/2026-04-19-*.md`——反证引用这次是
+真的(recall"保留不投资"、jianying"结案"、claude-den"停更"都对得上),问题变成了类别边界:那些是
+带 `topic:/date:/sources:` 头的研究笔记,prompt 第 1 条本来就把研究笔记排除在外。**失败模式从
+"编造依据"降级成了"类别判断偏松"**,后者危险性低得多,但还没解决——下一轮若要动,应该改 prompt
+第 1 条对研究笔记的措辞,或让 `.patrolignore` 收掉 `ai_native_study/`。
 
 ## 4. 提交后怎么沉淀(比赛跟日常是同一份代码)
 

@@ -9,7 +9,9 @@ DEMO = Path(__file__).resolve().parent.parent / "demo-vault"
 
 def _f(file, quote, verdict="rot"):
     return Finding(reasoning="r", category=Category.STALE_ACTIVE_REFERENCE, file=file,
-                   evidence_quote=quote, proposed_action=Action.MARK_HISTORICAL, verdict=verdict)
+                   evidence_quote=quote, counter_evidence_file="notes/changelog.md",
+                   counter_evidence_quote="2026-07-03: llm-wiki daemon retired.",
+                   proposed_action=Action.MARK_HISTORICAL, verdict=verdict)
 
 
 def test_patrol_path_keeps_only_verified_findings(monkeypatch):
