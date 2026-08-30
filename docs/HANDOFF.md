@@ -13,11 +13,12 @@
 
 | 项 | 状态 | 证据命令 | 预期输出 |
 |---|---|---|---|
-| 单测 | ✅ 11/11 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `11 passed`(含 1 个 monkeypatch 掉模型的语义路径测试 + 2 个孤儿可达性测试,均不走网络) |
+| 单测 | ✅ 24/24 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `24 passed`(全部不走网络:语义路径 stub、分批、.patrolignore、PR body、webhook 签名) |
 | 机械层 CLI | ✅ | `.venv/bin/python -m patrol run demo-vault --no-model` | 表格 4 行:1 broken_link + 1 orphan + 2 dangling_wikilink |
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
 | Gemini 语义层 | ✅ 闸 1 通过(Vertex,location=global) | `set -a && source .env && set +a && .venv/bin/python -m patrol run demo-vault` | 5/5 类全中:6 semantic kept / 0 dropped(prompt 2026-08-30.2) |
+| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 1m22s;84 mechanical(32 orphan + 52 dangling)/ 2 semantic / 0 dropped |
 | GitHub 开 PR 闭环 | ✅ 闸 2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
 | Cloud Run | ✅ 闸 3 通过 https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
 | 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ b0d7170...: 4 mechanical / 4 semantic / 0 dropped → .../pull/1` |
@@ -146,17 +147,17 @@ Devpost 表单要填:赛道 Taskmaster;hosted URL 填 `https://vault-patrol-3548
 ## 5. 文件地图
 
 ```
-patrol/vault.py       读仓 → 不可变快照;NFC 归一化
+patrol/vault.py       读仓 → 不可变快照;NFC 归一化;`.patrolignore` 过滤
 patrol/mechanical.py  三条确定性检查
 patrol/models.py      Finding / SemanticReport / PatrolResult(reasoning 在前;Action 只有减法枚举)
-patrol/semantic.py    唯一一次模型调用;prompt 在 prompts/semantic.md 带版本号
-patrol/adjudicate.py  代码裁决:verdict=rot + 文件存在 + 引用原文逐字命中 + 去重 + 上限 12
-patrol/report.py      渲染 PATROL_REPORT.md;只自动应用"删断链行"这一种编辑
+patrol/semantic.py    分批(索引 note 进每一批)+ 每批一次模型调用;prompt 在 prompts/semantic.md 带版本号
+patrol/adjudicate.py  代码裁决:verdict=rot + 文件存在 + 引用逐字命中(容忍 markdown 装饰)+ 去重 + 上限 12;逐条记 drop 原因
+patrol/report.py      渲染 PATROL_REPORT.md(平表)+ PR body(机械项折进 <details>);只自动应用"删断链行"这一种编辑
 patrol/github_ops.py  clone / push 分支 / 开或更新 PR
-patrol/runner.py      控制流:只对 429/5xx/连接错误重试 2 次、clean 不开 PR
+patrol/runner.py      控制流:分批并发上限 4、每批只对 429/5xx/连接错误重试 2 次、clean 不开 PR
 patrol/cli.py         run <path> / repo <owner/name>
 app/main.py           /webhook(HMAC 校验)/healthz
 scripts/deploy.sh     闸 3 全流程,幂等可重跑
 demo-vault/           埋了全部 8 类腐烂的示例仓
-tests/                11 个测试(含不走网络的语义路径 stub 测试)
+tests/                24 个测试(全部不走网络)
 ```

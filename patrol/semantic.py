@@ -10,13 +10,13 @@ from google import genai
 from google.genai import types
 
 from .models import SemanticReport
-from .vault import Vault
+from .vault import Note, Vault
 
 log = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "semantic.md"
 DEFAULT_MODEL = "gemini-3.5-flash"
-MAX_CONTEXT_CHARS = 350_000  # stay well under the model window; larger vaults are truncated by file order
+MAX_CONTEXT_CHARS = 350_000  # per model call; a vault larger than this is split across calls
 
 
 def prompt_version() -> str:
@@ -37,32 +37,53 @@ def _client() -> genai.Client:
     return genai.Client(api_key=key)
 
 
-def render_vault(v: Vault) -> tuple[str, int]:
-    """Render whole notes until the budget is spent. Returns (body, notes_not_sent)."""
-    parts, used = [], 0
-    for n in v.notes:
-        block = f'<note path="{n.rel_path}">\n{n.text}\n</note>'
-        if used + len(block) > MAX_CONTEXT_CHARS:
-            break
-        parts.append(block)
-        used += len(block) + 2
-    truncated = len(v.notes) - len(parts)
-    if truncated:
-        log.warning("vault exceeds the %d-char context budget: %d of %d notes were not sent to the model",
-                    MAX_CONTEXT_CHARS, truncated, len(v.notes))
-        parts.append("<!-- truncated -->")
-    return "\n\n".join(parts), truncated
+def _block(n: Note) -> str:
+    return f'<note path="{n.rel_path}">\n{n.text}\n</note>'
 
 
-def judge(v: Vault, model: str | None = None) -> tuple[SemanticReport, str, int]:
-    """Single structured call. Returns (report, model_id, notes_truncated).
-    Raises on transport errors; runner.py decides what is worth retrying."""
+def render_notes(notes: list[Note]) -> str:
+    return "\n\n".join(_block(n) for n in notes)
+
+
+def plan_batches(v: Vault) -> tuple[list[list[Note]], list[Note]]:
+    """Split the vault into batches that each fit the per-call budget, with the index note
+    prepended to every batch so each call keeps its bearings. Returns (batches, oversized)
+    where oversized notes are the ones that do not fit even alone."""
+    index = v.index
+    head = [index] if index else []
+    head_len = len(_block(index)) + 2 if index else 0
+    body = [n for n in v.notes if index is None or n.rel_path != index.rel_path]
+
+    batches: list[list[Note]] = []
+    oversized: list[Note] = []
+    current: list[Note] = []
+    used = head_len
+    for n in body:
+        size = len(_block(n)) + 2
+        if head_len + size > MAX_CONTEXT_CHARS:
+            oversized.append(n)
+            continue
+        if used + size > MAX_CONTEXT_CHARS and current:
+            batches.append(head + current)
+            current, used = [], head_len
+        current.append(n)
+        used += size
+    if current or not batches:
+        batches.append(head + current)
+    if oversized:
+        log.warning("%d note(s) exceed the %d-char per-call budget on their own and were not sent: %s",
+                    len(oversized), MAX_CONTEXT_CHARS, ", ".join(n.rel_path for n in oversized))
+    return batches, oversized
+
+
+def judge(notes: list[Note], model: str | None = None) -> tuple[SemanticReport, str]:
+    """One structured call over one batch. Returns (report, model_id).
+    Raises on transport errors; runner.py owns the loop and decides what is worth retrying."""
     model_id = model or os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
     client = _client()
-    body, truncated = render_vault(v)
     resp = client.models.generate_content(
         model=model_id,
-        contents=body,
+        contents=render_notes(notes),
         config=types.GenerateContentConfig(
             system_instruction=PROMPT_PATH.read_text(),
             response_mime_type="application/json",
@@ -73,4 +94,4 @@ def judge(v: Vault, model: str | None = None) -> tuple[SemanticReport, str, int]
     parsed = resp.parsed
     if parsed is None:
         parsed = SemanticReport.model_validate_json(resp.text)
-    return parsed, model_id, truncated
+    return parsed, model_id

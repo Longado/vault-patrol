@@ -4,9 +4,11 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 
 INDEX_CANDIDATES = ("MEMORY.md", "INDEX.md", "index.md", "README.md")
+IGNORE_FILE = ".patrolignore"
 MD_LINK_RE = re.compile(r"\]\(([^)\s#]+?\.md)(?:#[^)]*)?\)")
 WIKI_LINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]")
 MD_DIR_LINK_RE = re.compile(r"\]\(([^)\s#]+/)\)")
@@ -42,16 +44,36 @@ def nfc(s: str) -> str:
     return unicodedata.normalize("NFC", s)
 
 
+def ignore_patterns(root: Path) -> tuple[str, ...]:
+    """gitignore-style lines from .patrolignore. Blank lines and `#` comments are skipped."""
+    f = root / IGNORE_FILE
+    if not f.is_file():
+        return ()
+    lines = (ln.strip() for ln in f.read_text(encoding="utf-8", errors="replace").splitlines())
+    return tuple(ln for ln in lines if ln and not ln.startswith("#"))
+
+
+def is_ignored(rel_path: str, patterns: tuple[str, ...]) -> bool:
+    """Match the path itself, and every parent directory written with a trailing slash."""
+    parts = rel_path.split("/")
+    candidates = [rel_path] + ["/".join(parts[: i + 1]) + "/" for i in range(len(parts) - 1)]
+    return any(fnmatch(c, pat) for c in candidates for pat in patterns)
+
+
 def load_vault(root: Path) -> Vault:
     root = root.resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"vault root not found: {root}")
+    patterns = ignore_patterns(root)
     notes = []
     for p in sorted(root.rglob("*.md")):
+        rel = nfc(str(p.relative_to(root)))
         if any(part.startswith(".") for part in p.relative_to(root).parts):
             continue
+        if is_ignored(rel, patterns):
+            continue
         raw = p.read_bytes()[:MAX_FILE_BYTES]
-        notes.append(Note(nfc(str(p.relative_to(root))), raw.decode("utf-8", errors="replace")))
+        notes.append(Note(rel, raw.decode("utf-8", errors="replace")))
     index_path = next((c for c in INDEX_CANDIDATES if (root / c).is_file()), None)
     return Vault(root=root, notes=tuple(notes), index_path=index_path)
 
