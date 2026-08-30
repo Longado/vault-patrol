@@ -17,15 +17,16 @@
 | 机械层 CLI | ✅ | `.venv/bin/python -m patrol run demo-vault --no-model` | 表格 4 行:1 broken_link + 1 orphan + 2 dangling_wikilink |
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
-| Gemini 语义层 | ⚠️ 真调用未跑过(本机无 key);裁决逻辑已用 stub 覆盖 | `.venv/bin/pytest -q tests/test_semantic_path.py` | `1 passed`:3 条模型 finding → 留 1 / dropped 2 |
+| Gemini 语义层 | ✅ 闸 1 通过(Vertex,location=global) | `set -a && source .env && set +a && .venv/bin/python -m patrol run demo-vault` | 5/5 类全中:6 semantic kept / 0 dropped(prompt 2026-08-30.2) |
 | GitHub 开 PR 闭环 | ✅ 闸 2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
-| Cloud Run | ❌ 未部署;部署脚本已写好待跑 | `bash -n scripts/deploy.sh` | 无输出(语法通过);有凭证后 `PROJECT=<id> bash scripts/deploy.sh` |
+| Cloud Run | ✅ 闸 3 通过 https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
+| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ b0d7170...: 4 mechanical / 4 semantic / 0 dropped → .../pull/1` |
 | 架构图 PNG | ✅ `docs/architecture.png`(mermaid-cli 导出,2000px 白底) | `ls -la docs/architecture.png` | 约 68 KB |
 
 已知未验证的假设(接手时优先证伪):
-1. 模型 ID `gemini-3.5-flash` 是猜的,闸 1 第一条命令就是列模型核对。
-2. `google-genai` 2.20 的 `response_schema=` 接 pydantic 类 + `resp.parsed` 这个用法按 1.x 文档写的,闸 1 真跑一次即知。
-3. Cloud Run 上 FastAPI `BackgroundTasks` 在响应返回后是否继续拿 CPU:部署必须带 `--no-cpu-throttling`,否则巡查可能被冻结。
+1. ~~模型 ID `gemini-3.5-flash` 是猜的~~ → 已证实存在,**但只在 Vertex `location=global` 下有**(us-central1 未测)。
+2. ~~`response_schema=` 接 pydantic 类 + `resp.parsed` 的用法存疑~~ → 已验证可用,`dropped` 一直是 0。
+3. ~~`BackgroundTasks` 在响应返回后能否继续拿 CPU~~ → 带 `--no-cpu-throttling` 实测可以,webhook 返回 202 后约 20 秒出 PR。
 4. `patrol/mechanical.py` 的断链检测在 demo-vault 上目前 0 命中(索引里所有链接都真实存在),要演示 delete_line 得在闸 2 前往 `MEMORY.md` 加一行指向不存在文件的链接。
 
 ## 2. 需要 Eddie 本人做的(代码侧无法代劳)
@@ -83,6 +84,8 @@ cd .. && set -a && source .env && set +a
 
 ### 闸 3 Cloud Run 部署(约 1.5 小时,依赖 E2)
 
+✅ **已完成 8-30 21:00**,服务 https://vault-patrol-35482708254.us-central1.run.app。
+
 **一条命令版本(推荐):`PROJECT=<项目 ID> bash scripts/deploy.sh`** —— 幂等,可重跑。它按顺序做:开服务 → 从 `.env` 建/更新三个 secret(webhook secret 复用已有版本,避免重跑后 GitHub 那边签名失效)→ 补服务账号 IAM → `gcloud run deploy --source` → 打印 URL + 打 `/healthz` → 在 demo 仓建或更新 push webhook。下面是它内部等价的手工步骤,排障时对照看:
 
 ```bash
@@ -112,7 +115,9 @@ gcloud run services logs read vault-patrol --region $REGION --limit 30
 
 完成判据:日志出现 `patrolled Longado/vault-patrol-demo @ <sha>: N mechanical / M semantic / K dropped → https://github.com/.../pull/N`,PR 页面能打开。
 
-坑位:
+坑位(前两条是这次真踩到的):
+- `--source` 首次构建报 `PERMISSION_DENIED: ... default service account is missing required IAM permissions`:compute 服务账号要显式给 `roles/cloudbuild.builds.builder`(2024 年后 Cloud Build 默认账号改了),脚本已包含。
+- **`/healthz` 在 Cloud Run 上会被 Google 前端自己答掉**(返回 Google 的 HTML 404,请求根本进不了容器;`/docs`、`/webhook`、未注册路径都正常进)。所以健康检查用 `/health`,两个路由都留着。
 - Secret Manager 需要给 Cloud Run 的服务账号 `roles/secretmanager.secretAccessor`,报 permission denied 就 `gcloud projects add-iam-policy-binding $PROJECT --member serviceAccount:$(gcloud projects describe $PROJECT --format 'value(projectNumber)')-compute@developer.gserviceaccount.com --role roles/secretmanager.secretAccessor`。
 - GitHub webhook 10 秒超时,我们返回 202 后台跑,GitHub 那边会显示成功;如果显示失败看 Cloud Run 冷启动时长。
 - 如果 `--source` 构建失败,退路:`docker buildx build --platform linux/amd64 -t $REGION-docker.pkg.dev/$PROJECT/vault-patrol/app . --push` 再 `gcloud run deploy --image`。
@@ -129,7 +134,7 @@ gcloud run services logs read vault-patrol --region $REGION --limit 30
 
 ### 闸 5 提交(9-1 02:00 前)
 
-Devpost 表单要填:赛道 Taskmaster;hosted URL 填 Cloud Run 的 `/healthz`;仓库 URL(公开,或私有并共享给 testing@devpost.com 和 cloudhackathons@google.com);视频 YouTube 公开链接;架构图上传。提交后 Cloud Run 可以 `gcloud run services delete` 省钱,FAQ 明说不要求评审期在线。
+Devpost 表单要填:赛道 Taskmaster;hosted URL 填 `https://vault-patrol-35482708254.us-central1.run.app/health`;仓库 URL(公开,或私有并共享给 testing@devpost.com 和 cloudhackathons@google.com);视频 YouTube 公开链接;架构图上传。提交后 Cloud Run 可以 `gcloud run services delete` 省钱,FAQ 明说不要求评审期在线。
 
 ## 4. 提交后怎么沉淀(比赛跟日常是同一份代码)
 

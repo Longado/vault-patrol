@@ -4,7 +4,7 @@
 
 vault-patrol is an event-driven agent for markdown knowledge vaults (Obsidian, Claude Code memory dirs, team wikis). On every push it audits the vault for *rot* — text that will mislead a future reader into acting on something no longer true — and opens **one subtraction-only pull request**. It never creates notes or tasks.
 
-Built for the All Things Agentic Hackathon (Taskmaster track). Runs on Cloud Run with Gemini 3.5 via the Google GenAI SDK; secrets live in Secret Manager.
+Built for the All Things Agentic Hackathon (Taskmaster track). Runs on Cloud Run with Gemini 3.5 through Vertex AI (the Google GenAI SDK, authenticated as the service account); secrets live in Secret Manager.
 
 ## What it catches
 
@@ -45,19 +45,35 @@ set -a && source .env && set +a
 ## Deploy to Google Cloud
 
 ```bash
+PROJECT=<your-project> bash scripts/deploy.sh
+```
+
+Idempotent — re-run it after any change. It enables the APIs, stores `github-token` and
+`webhook-secret` in Secret Manager (reusing the existing webhook secret so the GitHub hook
+keeps working), grants the runtime service account `secretmanager.secretAccessor`,
+`aiplatform.user` and `cloudbuild.builds.builder`, deploys from source, and creates or
+updates the push webhook on the demo repo.
+
+What it runs, in case you want it by hand:
+
+```bash
 PROJECT=<your-project>; REGION=us-central1
-gcloud config set project $PROJECT
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
-printf '%s' "$GEMINI_API_KEY" | gcloud secrets create gemini-api-key --data-file=-
-printf '%s' "$GITHUB_TOKEN"   | gcloud secrets create github-token --data-file=-
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com
+printf '%s' "$GITHUB_TOKEN" | gcloud secrets create github-token --data-file=-
 printf '%s' "$(openssl rand -hex 20)" | gcloud secrets create webhook-secret --data-file=-
 gcloud run deploy vault-patrol --source . --region $REGION --allow-unauthenticated \
   --no-cpu-throttling --timeout 600 --memory 1Gi \
-  --set-env-vars GEMINI_MODEL=gemini-3.5-flash \
-  --set-secrets GEMINI_API_KEY=gemini-api-key:latest,GITHUB_TOKEN=github-token:latest,GITHUB_WEBHOOK_SECRET=webhook-secret:latest
+  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash \
+  --set-secrets GITHUB_TOKEN=github-token:latest,GITHUB_WEBHOOK_SECRET=webhook-secret:latest
 ```
 
-Or just `PROJECT=<your-project> bash scripts/deploy.sh`, which does all of the above idempotently and wires the webhook.
+On Vertex there is no API key: the Cloud Run service account authenticates, which is why it
+needs `roles/aiplatform.user`. `GOOGLE_CLOUD_LOCATION=global` is the Vertex endpoint that
+serves `gemini-3.5-flash` — it is independent of the Cloud Run region.
+
+Health check is **`/health`**, not `/healthz`: Cloud Run's frontend answers `/healthz` itself
+and the request never reaches the container. Both routes exist, so `/healthz` still works locally.
 
 Then add a GitHub webhook on your vault repo: payload URL `https://<service>.run.app/webhook`, content type JSON, secret = the `webhook-secret` value, event = push. Push to the default branch and a PR appears.
 
@@ -67,7 +83,9 @@ Then add a GitHub webhook on your vault repo: payload URL `https://<service>.run
 
 | Variable | Purpose |
 |---|---|
-| `GEMINI_API_KEY` | Google AI Studio key (or set `GOOGLE_GENAI_USE_VERTEXAI=true` + `GOOGLE_CLOUD_PROJECT`) |
+| `GOOGLE_GENAI_USE_VERTEXAI` | `true` = reach Gemini through Vertex with ADC / the service account (what the deployment uses) |
+| `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | Vertex project and endpoint; `global` for `gemini-3.5-flash` |
+| `GEMINI_API_KEY` | alternative to the three above: a Google AI Studio key |
 | `GEMINI_MODEL` | default `gemini-3.5-flash` |
 | `GITHUB_TOKEN` | clone private vaults, push branch, open PR |
 | `GITHUB_WEBHOOK_SECRET` | HMAC signature check for `/webhook` |
@@ -83,7 +101,7 @@ patrol/adjudicate.py   code-level verification of every model finding
 patrol/report.py       PATROL_REPORT.md + the one auto-applied edit (dead index lines)
 patrol/github_ops.py   clone / push / open-or-update PR
 patrol/runner.py       control flow: narrow retries, "clean vault → no PR"
-app/main.py            Cloud Run service: /webhook (HMAC), /healthz
+app/main.py            Cloud Run service: /webhook (HMAC), /health + /healthz
 scripts/deploy.sh      one-command idempotent deploy + webhook wiring
 demo-vault/            sample vault with every rot category planted
 ```

@@ -35,8 +35,11 @@ def _run(repo: str, ref: str | None) -> None:
         log.exception("patrol failed for %s", repo)
 
 
+@app.get("/health")
 @app.get("/healthz")
 def healthz() -> dict:
+    """Two paths on purpose: Cloud Run's frontend answers /healthz itself and the request
+    never reaches the container, so /health is the one to probe once deployed."""
     return {"ok": True}
 
 
