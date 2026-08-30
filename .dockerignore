@@ -1,0 +1,7 @@
+.env
+.venv
+.git
+work
+tests
+demo-vault
+docs
