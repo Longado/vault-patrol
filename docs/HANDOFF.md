@@ -1,7 +1,7 @@
 # vault-patrol 接力计划(All Things Agentic Hackathon)
 
 - 写于:2026-08-30 晚
-- 代码锚点:见 `git log --oneline -1`(R2 后已推进)(接手第一步:`git -C ~/Desktop/Workspace/01_项目/vault-patrol log --oneline -3`,若 HEAD 不是 6d6c2a5 先 `git diff 6d6c2a5..HEAD --stat` 看清差异再动)
+- 代码锚点:`daa12cd`(R2 完成时)。接手第一步:`git -C ~/Desktop/Workspace/01_项目/vault-patrol log --oneline -3`,若 HEAD 不是 daa12cd 先 `git diff daa12cd..HEAD --stat` 看清差异再动
 - 硬截止:**北京时间 2026-09-01 08:00**(= 8-31 17:00 PDT)。自设提交线 **9-1 02:00**,留 6 小时余量。
 - 提交入口:https://allthingsagentichackathon.devpost.com/ (赛道 Taskmaster)
 
