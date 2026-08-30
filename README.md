@@ -19,7 +19,7 @@ Built for the All Things Agentic Hackathon (Taskmaster track). Runs on Cloud Run
 | semantic | `hard_conflict` — two notes giving opposite instructions | Gemini, verified by code |
 | semantic | `falsified_claim` — "used daily" next to a log showing 1 use in 17 days | Gemini, verified by code |
 
-Every semantic finding must carry an `evidence_quote` that is a verbatim substring of the file. If it is not, code drops it. The PR shows how many were dropped.
+Every semantic finding must carry an `evidence_quote` that is a verbatim substring of the file — verbatim with markdown emphasis such as backticks and `**` ignored, since models routinely re-type a line without its decoration. A paraphrase still fails. If the quote is not found, code drops the finding, and the report says how many were dropped and why.
 
 Live service: https://vault-patrol-35482708254.us-central1.run.app/health
 

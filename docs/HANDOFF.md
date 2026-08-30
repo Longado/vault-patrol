@@ -13,15 +13,15 @@
 
 | 项 | 状态 | 证据命令 | 预期输出 |
 |---|---|---|---|
-| 单测 | ✅ 24/24 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `24 passed`(全部不走网络:语义路径 stub、分批、.patrolignore、PR body、webhook 签名) |
+| 单测 | ✅ 25/25 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `25 passed`(全部不走网络:语义路径 stub、分批+批大小旋钮、.patrolignore、PR body、webhook 签名) |
 | 机械层 CLI | ✅ | `.venv/bin/python -m patrol run demo-vault --no-model` | 表格 4 行:1 broken_link + 1 orphan + 2 dangling_wikilink |
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
 | Gemini 语义层 | ✅ 闸 1 通过(Vertex,location=global) | `set -a && source .env && set +a && .venv/bin/python -m patrol run demo-vault` | 5/5 类全中:6 semantic kept / 0 dropped(prompt 2026-08-30.2) |
-| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 1m22s;84 mechanical(32 orphan + 52 dangling)/ 2 semantic / 0 dropped |
+| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 79s;84 mechanical(32 orphan + 52 dangling)/ 10 semantic / 0 dropped,人判 9 真 1 假(prompt .3,见 3.5) |
 | GitHub 开 PR 闭环 | ✅ 闸 2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
-| Cloud Run | ✅ 闸 3 通过 https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
-| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ b0d7170...: 4 mechanical / 4 semantic / 0 dropped → .../pull/1` |
+| Cloud Run | ✅ revision 3(prompt 2026-08-30.3)https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
+| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ cb5bb1f...: 4 mechanical / 6 semantic / 0 dropped → .../pull/1`,5 类全中 |
 | 架构图 PNG | ✅ `docs/architecture.png`(mermaid-cli 导出,2000px 白底) | `ls -la docs/architecture.png` | 约 68 KB |
 
 已知未验证的假设(接手时优先证伪):
@@ -136,6 +136,30 @@ gcloud run services logs read vault-patrol --region $REGION --limit 30
 ### 闸 5 提交(9-1 02:00 前)
 
 Devpost 表单要填:赛道 Taskmaster;hosted URL 填 `https://vault-patrol-35482708254.us-central1.run.app/health`;仓库 URL(公开,或私有并共享给 testing@devpost.com 和 cloudhackathons@google.com);视频 YouTube 公开链接;架构图上传。提交后 Cloud Run 可以 `gcloud run services delete` 省钱,FAQ 明说不要求评审期在线。
+
+## 3.5 召回实验(2026-08-30,真 memory 仓 175 note)
+
+问题:prompt 2026-08-30.2 在真仓只报 2 条,怀疑"少而精"这句把模型压住了。先改 prompt 到 .3
+("能拿出原文引用的都报,别自我配给"),再测批大小对召回和误报的影响。
+
+| 批大小 | 模型调用 | 墙钟 | 通过裁决 | 其中入表 / 撞上限 | 引用对不上 | 人工判定 |
+|---|---|---|---|---|---|---|
+| 不限(≈87/批) | 2 | 79s | 10 | 10 / 0 | 0 | **9 真 / 1 假** |
+| 40 | 5 | 114s | 33 | 12 / 21 | 1 | 入表 12 条里 3 真 / 8 假(1 条未判) |
+| 20 | 9 | 295s | 25 | 12 / 13 | 2 | 入表 12 条里 4 真 / 8 假 |
+
+结论:**默认不限**(已写进 `patrol/semantic.py` 的 ponytail 注释)。批越小召回的"数量"越高,
+但多出来的几乎全是 `ai_native_study/2026-04-19-*.md` 这一个文件夹里同一个模子刻出来的误报——
+那些是带 `topic:/date:/sources:` 头的研究笔记,prompt 第 1 条本来就写明"研究/历史/changelog
+里的提及不算腐烂"。批一小,模型看不到足够的跨仓上下文来分辨"已归档的项目"和"某天的研究记录",
+就把研究笔记里的"可以试试 recall"当成活指令。另外它把 recall 说成"已退役",而 MEMORY.md 写的是
+"保留不投资"——这也是上下文不足的表现。
+
+顺带暴露两件事(本轮未改):
+1. `MAX_SEMANTIC_FINDINGS = 12` 现在是硬瓶颈:批一小就有 13~21 条合格发现被 `over_cap` 砍掉,
+   而且是按到达顺序砍,不是按质量。要提高真实产出得先动这个上限。
+2. 不限批下唯一那条假阳性(`MEMORY.md` 的 xrepo)引用原文是真的,但 reasoning 里"2026-07-03
+   已删除"这个日期在仓里查无实据。引用逐字核实挡不住"引用为真、推理编造"这一类。
 
 ## 4. 提交后怎么沉淀(比赛跟日常是同一份代码)
 

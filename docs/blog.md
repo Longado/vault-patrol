@@ -30,8 +30,10 @@ those will fail identically on the next attempt.
 **Every citation is verified against the file.** The model's output schema requires an
 `evidence_quote` for each finding, and `reasoning` is the first field in the schema, so the
 model writes its argument before committing to a verdict. Then code checks that the quote is
-a verbatim substring of the file it was attributed to. If it is not, the finding is dropped
-and counted. The report prints that count. A hallucinated citation cannot reach the pull
+a verbatim substring of the file it was attributed to — verbatim with markdown emphasis such
+as backticks and `**` ignored, because models routinely re-type a line without its decoration;
+a paraphrase still fails. If the quote is not found, the finding is dropped and counted, with
+the reason recorded. The report prints that count. A hallucinated citation cannot reach the pull
 request; it can only show up as a number saying the model tried.
 
 **Subtraction only, enforced by the type.** The action field is an enum: `delete_line`,

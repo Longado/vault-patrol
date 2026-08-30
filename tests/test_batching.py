@@ -31,3 +31,14 @@ def test_note_too_big_for_one_call_is_reported_not_silently_cut(tmp_path, monkey
 
     assert [n.rel_path for n in oversized] == ["n0.md"]
     assert all("n0.md" not in {n.rel_path for n in b} for b in batches)
+
+
+def test_max_notes_per_batch_env_knob_caps_batch_size(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATROL_MAX_NOTES_PER_BATCH", "3")
+    v = _vault(tmp_path, n_notes=10, note_chars=10)  # would fit one batch on chars alone
+
+    batches, oversized = semantic.plan_batches(v)
+
+    assert oversized == []
+    assert len(batches) == 4  # 3 + 3 + 3 + 1, index note excluded from the count
+    assert all(len(b) <= 4 for b in batches)  # index + at most 3

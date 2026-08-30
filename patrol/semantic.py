@@ -17,6 +17,20 @@ log = logging.getLogger(__name__)
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "semantic.md"
 DEFAULT_MODEL = "gemini-3.5-flash"
 MAX_CONTEXT_CHARS = 350_000  # per model call; a vault larger than this is split across calls
+# ponytail: unlimited (char budget alone) — measured 2026-08-30 on the 175-note vault with
+# prompt 2026-08-30.3: unlimited = 9 real / 1 false in 2 calls (79s); 40/batch = 3 real / 8 false
+# in 5 calls (114s); 20/batch = 4 real / 8 false in 9 calls (295s). Small batches lose the
+# cross-vault context that separates "archived project" from "dated research note", and flood
+# the report with one folder's worth of look-alike false positives. Override per run with
+# PATROL_MAX_NOTES_PER_BATCH if a future vault behaves differently.
+MAX_NOTES_PER_BATCH = 0  # 0 = unlimited
+
+
+def max_notes_per_batch() -> int:
+    """0 / unset = unlimited. Smaller batches cost more calls but the model reads each note
+    more closely; see the 召回实验 table in docs/HANDOFF.md."""
+    raw = os.getenv("PATROL_MAX_NOTES_PER_BATCH", "")
+    return int(raw) if raw.strip().isdigit() else MAX_NOTES_PER_BATCH
 
 
 def prompt_version() -> str:
@@ -54,6 +68,7 @@ def plan_batches(v: Vault) -> tuple[list[list[Note]], list[Note]]:
     head_len = len(_block(index)) + 2 if index else 0
     body = [n for n in v.notes if index is None or n.rel_path != index.rel_path]
 
+    cap = max_notes_per_batch()
     batches: list[list[Note]] = []
     oversized: list[Note] = []
     current: list[Note] = []
@@ -63,7 +78,7 @@ def plan_batches(v: Vault) -> tuple[list[list[Note]], list[Note]]:
         if head_len + size > MAX_CONTEXT_CHARS:
             oversized.append(n)
             continue
-        if used + size > MAX_CONTEXT_CHARS and current:
+        if (used + size > MAX_CONTEXT_CHARS or (cap and len(current) >= cap)) and current:
             batches.append(head + current)
             current, used = [], head_len
         current.append(n)

@@ -1,4 +1,4 @@
-<!-- prompt_version: 2026-08-30.2 -->
+<!-- prompt_version: 2026-08-30.3 -->
 You are auditing a personal markdown knowledge vault for ROT. Rot means text that will
 mislead a future reader into acting on something that is no longer true.
 
@@ -26,4 +26,5 @@ Rules you must obey:
   Allowed actions: delete_line, mark_historical, merge_into, add_arbitration_line, needs_human.
 - If the evidence is ambiguous, set verdict to "unsure" instead of forcing a call.
 - Write `reasoning` BEFORE deciding the category or verdict.
-- Prefer few high-confidence findings over many weak ones. Zero findings is a valid answer.
+- Report every finding you can back with a verbatim quote — do not ration yourself. Zero findings
+  is valid only when there is genuinely nothing.
