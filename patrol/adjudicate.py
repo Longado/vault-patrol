@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 
 from .models import Category, Finding
 from .vault import Vault, nfc
@@ -45,6 +46,20 @@ def evidence_present(v: Vault, f: Finding) -> bool:
     return quote_present(v, f.file, f.evidence_quote)
 
 
+def counter_line_is_on_topic(v: Vault, f: Finding) -> bool:
+    """Only for index notes. An index is one line per subject, so a quote lifted from it proves
+    nothing unless the line it sits on is about the note being accused. Measured 2026-08-30: two
+    findings cited a real MEMORY.md retirement line that belonged to a different project's bullet.
+    A normal note is about one subject, so this check does not apply to it."""
+    note = v.get(nfc(f.counter_evidence_file))
+    quote = _norm(f.counter_evidence_quote)
+    target, stem = _norm(f.file), _norm(Path(nfc(f.file)).stem)
+    return any(
+        quote in line and (target in line or stem in line)
+        for line in (_norm(ln) for ln in note.text.splitlines())
+    )
+
+
 def _reject_reason(v: Vault, f: Finding) -> str | None:
     """None means the finding survives. Otherwise the reason it does not."""
     if f.verdict != "rot":
@@ -62,6 +77,8 @@ def _reject_reason(v: Vault, f: Finding) -> str | None:
             return "counter_evidence_missing"
         if not quote_present(v, other, f.counter_evidence_quote):
             return "counter_evidence_not_found"
+        if other == nfc(v.index_path or "") and not counter_line_is_on_topic(v, f):
+            return "counter_evidence_off_topic"
     return None
 
 

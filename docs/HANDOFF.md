@@ -13,15 +13,15 @@
 
 | 项 | 状态 | 证据命令 | 预期输出 |
 |---|---|---|---|
-| 单测 | ✅ 37/37 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `37 passed`(全部不走网络:记录笔记闸、反证引用五连、语义路径 stub、分批+批大小旋钮、.patrolignore、PR body、webhook 签名) |
+| 单测 | ✅ 39/39 | `cd ~/Desktop/Workspace/01_项目/vault-patrol && .venv/bin/pytest -q` | `39 passed`(全部不走网络:索引反证同行闸、记录笔记闸、反证引用五连、语义路径 stub、分批+批大小旋钮、.patrolignore、PR body、webhook 签名) |
 | 机械层 CLI | ✅ | `.venv/bin/python -m patrol run demo-vault --no-model` | 表格 4 行:1 broken_link + 1 orphan + 2 dangling_wikilink |
 | webhook 签名/路由 | ✅ | 见 `app/main.py`;坏签名 401、ping 200、非默认分支 ignored | — |
 | Docker | ✅ | `docker build -q -t vault-patrol:dev . && docker run --rm -e GITHUB_WEBHOOK_SECRET=x -p 18080:8080 -d --name vp vault-patrol:dev && sleep 3 && curl -s localhost:18080/healthz; docker rm -f vp` | `{"ok":true}` |
 | Gemini 语义层 | ✅ 闸 1 通过(Vertex,location=global) | `set -a && source .env && set +a && .venv/bin/python -m patrol run demo-vault` | 5/5 类全中:7 semantic kept / 0 dropped(prompt 2026-08-30.4) |
-| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 96s;84 mechanical(32 orphan + 52 dangling)/ 6 semantic / 1 dropped(quote_not_found),人判 4 真 2 假(prompt .5,见 3.7) |
+| 真 memory 仓实跑 | ✅ 175 note 分 2 批全送(不再截断) | `.venv/bin/python -m patrol run ~/.claude/projects/-Users-eddie-Desktop-Workspace/memory` | 208s;84 mechanical(32 orphan + 52 dangling)/ 3 semantic / 0 dropped,人判 2 真 1 存疑(轮 6,见 3.7) |
 | GitHub 开 PR 闭环 | ✅ 闸 2 完成(8-30 晚,--no-model) | `GITHUB_TOKEN=$(gh auth token) .venv/bin/python -m patrol repo Longado/vault-patrol-demo --no-model` | `PR: https://github.com/Longado/vault-patrol-demo/pull/1`;重跑只更新同一 PR |
-| Cloud Run | ✅ revision 5(prompt 2026-08-30.5,两段引用 + 记录笔记闸)https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
-| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ daa39d2...: 4 mechanical / 7 semantic / 0 dropped → .../pull/1`,5 类全中,PR 表格带「proof in other note」列 |
+| Cloud Run | ✅ revision 6(prompt 2026-08-30.5,两段引用 + 记录笔记闸 + 索引反证同行)https://vault-patrol-35482708254.us-central1.run.app | `curl -s https://vault-patrol-35482708254.us-central1.run.app/health` | `{"ok":true}`(健康检查走 `/health`,`/healthz` 被 Cloud Run 前端截胡)|
+| 端到端 webhook | ✅ push demo 仓 → 日志 → PR 更新 | `gcloud run services logs read vault-patrol --region us-central1 --limit 40 \| grep patrolled` | `patrolled Longado/vault-patrol-demo @ 1b6318e...: 4 mechanical / 7 semantic / 0 dropped → .../pull/1`,5 类全中,PR 表格带「proof in other note」列 |
 | 架构图 PNG | ✅ `docs/architecture.png`(mermaid-cli 导出,2000px 白底) | `ls -la docs/architecture.png` | 约 68 KB |
 
 已知未验证的假设(接手时优先证伪):
@@ -215,8 +215,26 @@ prompt .5 加一句"kind=record 的不报 stale/falsified",裁决层再兜一道
 `**8-30 Eddie 拍板退役**(有造工具需求...)`,这句在 MEMORY.md 里逐字存在,所以过闸了——但它属于
 **Meta Finding 5-02** 那一条,不是 SHIFU 那一条(SHIFU 那行写的是"7-06 整体重挂 / 8-09 结算逾期
 待裁决")。也就是说:**反证引用能证明"这句话在那个文件里",证明不了"这句话说的是这个主题"**。
-索引类大文件(一行一个项目)最容易触发。可能的下一步:反证引用必须落在与 `file` 或其 stem 同一行/
-同一段,或者索引文件按条目切块再喂。本轮不改——功能已冻结。
+索引类大文件(一行一个项目)最容易触发。**轮 6 已修**:反证引用若来自索引笔记(`MEMORY.md`),那句话所在的**那一行**必须同时含目标文件的
+rel path 或 stem,否则 drop,原因 `counter_evidence_off_topic`。非索引文件不受影响(一篇普通笔记
+只讲一个主题)。把轮 5 那两条原样喂回新闸:
+
+```
+config/rules/common/agents.md      -> {'counter_evidence_off_topic': 1}
+feedback_llm_contract_selfcheck.md -> {'counter_evidence_off_topic': 1}
+```
+
+代价已量出来,记在这:这条规则也会砍掉**跨主题但成立**的发现。轮 4 判为真的两条重放即被砍——
+`pixel_agents_ref.md` 和 `managed_agents_research.md` 都是"目标笔记引用了第三个项目(CoLink),
+而索引里证明 CoLink 已归档的那一行当然不含目标文件名":
+
+```
+pixel_agents_ref.md:        kept=0 reasons={'counter_evidence_off_topic': 1}
+managed_agents_research.md: kept=0 reasons={'counter_evidence_off_topic': 1}
+```
+
+即用召回换精度。真要两头都要,得让反证引用支持"第三主题"——比如允许反证行含 `related_files`
+里任一文件的 stem。本轮不做。
 
 另:`hyperframes_study.md` 顶层文件名带 study 但**不算** record(规则只看目录名),这是有意的,
 它确实是一份带活 TODO 的笔记。

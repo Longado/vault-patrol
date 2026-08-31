@@ -81,3 +81,19 @@ def test_pinned_old_version_needs_no_counter_quote(demo_vault):
         _f("tools/llm_starter.md", 'MODEL = "claude-3-5-sonnet-20240620"',
            category=Category.PINNED_OLD_VERSION, counter_file="", counter_quote="")])
     assert len(kept) == 1 and reasons == {}
+
+
+def test_index_counter_quote_on_the_target_line_is_kept(demo_vault):
+    """MEMORY.md is one line per subject, so the line must be the target's own."""
+    kept, reasons = adjudicate(demo_vault, [
+        _f("tools/memvid.md", "Status: live.", counter_file="MEMORY.md",
+           counter_quote="[Memvid MCP server](tools/memvid.md) — semantic search over notes")])
+    assert len(kept) == 1 and reasons == {}
+
+
+def test_index_counter_quote_on_someone_elses_line_is_dropped(demo_vault):
+    """The round-5 hole: a real index line, but it belongs to a different project."""
+    kept, reasons = adjudicate(demo_vault, [
+        _f("tools/memvid.md", "Status: live.", counter_file="MEMORY.md",
+           counter_quote="[Testing rules](notes/testing.md)")])
+    assert kept == [] and reasons == {"counter_evidence_off_topic": 1}
