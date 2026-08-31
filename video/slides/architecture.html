@@ -1,0 +1,75 @@
+<!doctype html><meta charset="utf-8"><title>vault-patrol architecture</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.4 -apple-system,"SF Pro Text",Helvetica,Arial,sans-serif;background:#fff;color:#202124;
+     width:1400px;height:788px;padding:26px 30px;overflow:hidden}
+h1{font-size:26px;font-weight:700;letter-spacing:-.4px}
+h1 span{color:#5f6368;font-weight:500;font-size:17px;margin-left:12px}
+.row{display:flex;align-items:stretch;gap:14px;margin-top:20px}
+.box{border-radius:12px;padding:14px 16px;flex:1;border:2px solid;min-height:130px;display:flex;flex-direction:column}
+.t{font-size:18px;font-weight:700;margin-bottom:7px}
+.d{font-size:14.5px;color:#3c4043;line-height:1.55}
+.d b{color:#202124}
+.arrow{display:flex;align-items:center;font-size:26px;color:#9aa0a6;flex:0 0 auto}
+.gh{border-color:#5f6368;background:#f8f9fa}
+.gcp{border-color:#4285f4;background:#e8f0fe}
+.code{border-color:#34a853;background:#e6f4ea}
+.model{border-color:#fbbc04;background:#fef7e0}
+.pr{border-color:#ea4335;background:#fce8e6}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+     padding:2px 8px;border-radius:5px;margin-bottom:8px}
+.tag.c{background:#34a853;color:#fff}.tag.m{background:#fbbc04;color:#202124}
+.tag.g{background:#4285f4;color:#fff}.tag.p{background:#ea4335;color:#fff}
+.rules{margin-top:38px;border-top:2px solid #e8eaed;padding-top:16px;display:flex;gap:34px}
+.rule{flex:1}.rule .n{font-size:12px;font-weight:700;color:#5f6368;letter-spacing:1px}
+.rule .x{font-size:16.5px;font-weight:600;margin-top:5px;line-height:1.4}
+code{font:13.5px "SF Mono",Menlo,monospace;background:#fff;border:1px solid #dadce0;border-radius:4px;padding:1px 5px}
+
+@keyframes pop{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.box,.arrow,.rule{opacity:0;animation:pop .55s ease-out forwards}
+h1{opacity:0;animation:pop .5s ease-out forwards;animation-delay:.3s}
+.r1 .box:nth-child(1),.r1 .arrow:nth-child(2){animation-delay:1.6s}
+.r1 .box:nth-child(3),.r1 .arrow:nth-child(4){animation-delay:4.6s}
+.r1 .box:nth-child(5){animation-delay:8.6s}
+.r2 .box:nth-child(1),.r2 .arrow:nth-child(2){animation-delay:11.2s}
+.r2 .box:nth-child(3),.r2 .arrow:nth-child(4){animation-delay:15.0s}
+.r2 .box:nth-child(5),.r2 .arrow:nth-child(6){animation-delay:19.4s}
+.r2 .box:nth-child(7){animation-delay:23.2s}
+.rule:nth-child(1){animation-delay:25.5s}
+.rule:nth-child(2){animation-delay:26.3s}
+.rule:nth-child(3){animation-delay:27.1s}
+</style>
+<h1>vault-patrol <span>event-driven agent · one Gemini judgment · code owns every loop</span></h1>
+
+<div class="row r1">
+  <div class="box gh"><div class="t">GitHub vault repo</div>
+    <div class="d">A push to your notes.<br><b>HMAC-signed webhook.</b></div></div>
+  <div class="arrow">→</div>
+  <div class="box gcp"><span class="tag g">Google Cloud</span><div class="t">Cloud Run · FastAPI</div>
+    <div class="d">Returns <b>202</b> immediately, patrols in the background. Scales to zero.<br>Secrets in Secret Manager.</div></div>
+  <div class="arrow">→</div>
+  <div class="box code"><span class="tag c">Code</span><div class="t">Vault snapshot</div>
+    <div class="d">Clone at the exact sha.<br>Immutable · NFC-normalised.</div></div>
+</div>
+
+<div class="row r2">
+  <div class="box code"><span class="tag c">Code</span><div class="t">Mechanical layer</div>
+    <div class="d">Broken index links · orphans · dangling wikilinks.<br><b>Anything a regex can find never reaches the model.</b></div></div>
+  <div class="arrow">+</div>
+  <div class="box model"><span class="tag m">Gemini 3.5 Flash · GenAI SDK</span><div class="t">ONE structured call</div>
+    <div class="d">JSON schema, <b>reasoning field first</b>.<br>5 semantic rot categories. Temperature 0.</div></div>
+  <div class="arrow">→</div>
+  <div class="box code"><span class="tag c">Code</span><div class="t">Adjudication</div>
+    <div class="d">Evidence quote must be <b>verbatim</b> in the file.<br>Counter-quote verbatim in the other note.<br>Anything else is dropped and counted.</div></div>
+  <div class="arrow">→</div>
+  <div class="box pr"><span class="tag p">Output</span><div class="t">One GitHub PR</div>
+    <div class="d"><b>Subtraction only.</b><br>Re-runs update the same PR.</div></div>
+</div>
+
+<div class="rules">
+  <div class="rule"><div class="n">RULE 1</div><div class="x">The model makes one judgment.<br>Code owns every loop, retry and stop.</div></div>
+  <div class="rule"><div class="n">RULE 2</div><div class="x">Every citation is verified<br>before a human sees it.</div></div>
+  <div class="rule"><div class="n">RULE 3</div><div class="x">Action set is subtraction only:<br><code>delete · merge · mark_historical · needs_human</code></div></div>
+</div>
+
+<script>if(location.search.indexOf("static")>-1){document.querySelectorAll(".box,.arrow,.rule,h1").forEach(function(e){e.style.animationDelay="0s"})}</script>

@@ -1,0 +1,1 @@
+Three design rules hold this together. The model makes one judgment; code owns every loop, every retry, every termination. Every citation is verified before a human ever sees it, so the model cannot cite what is not there. And the action set is subtraction only: delete, merge, mark historical, or escalate to me. The agent cannot invent work for me.

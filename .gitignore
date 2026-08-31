@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 work/
+
+# demo video build artefacts (footage + renders live outside git; the recipe is committed)
+video/clips/
+video/work/
+video/audio/
+video/demo.mp4

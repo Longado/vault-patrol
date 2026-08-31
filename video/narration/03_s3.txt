@@ -1,0 +1,1 @@
+Here is the service on Cloud Run, in us-central-one, scaled to zero until a push arrives. It authenticates to Gemini through Vertex AI.

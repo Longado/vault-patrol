@@ -1,0 +1,1 @@
+I add one line to my tool stack note: run the llm-wiki daemon, it is the search backend. But my own changelog says that daemon was retired in July. I commit, and I push.

@@ -1,0 +1,1 @@
+The same entry point runs locally, with no cloud at all, which is why this outlives the hackathon.

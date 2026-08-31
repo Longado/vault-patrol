@@ -1,0 +1,1 @@
+The webhook fires. In the logs: cold start, the vault cloned at that exact sha, one Gemini call through Vertex AI, adjudication, pull request. Fifty seconds, end to end.
